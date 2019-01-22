@@ -100,6 +100,8 @@ def train_one_epoch(sess, ops, train_writer):
         current_data = processing.loadDataFile(os.path.join(TRAIN_FILES, fn), 'train', 0.9)
         print("data loading finished.")
         file_size = current_data.shape[0]
+        print(current_data.shape)
+        input()
         num_batches = file_size // BATCH_SIZE
         loss_sum = 0
         total_seen = 0
