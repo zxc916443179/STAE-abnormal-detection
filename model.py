@@ -36,7 +36,7 @@ def get_model(input, is_training):
     with tf.variable_scope('temporal_decoder_1'):
         lstm_cell = rnn.ConvLSTMCell(2, input_shape=[26, 26, 32], output_channels=64, kernel_shape=[3, 3])
         output, _ = tf.nn.dynamic_rnn(lstm_cell, output, initial_state=None, dtype='float32')
-        #print (output)
+        print (output)
 
     with tf.variable_scope('spatial_decoder_1'):
         decoded = tf.layers.conv3d_transpose(output, 128, kernel_size=[1, 5, 5],
