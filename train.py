@@ -37,7 +37,7 @@ def train():
             config.allow_soft_placement = True
             config.log_device_placement = False
 
-            origin_volume_pl = tf.placeholder(dtype=tf.float32, shape=[None, 10, 227, 227], name='input_x')
+            origin_volume_pl = tf.placeholder(dtype=tf.float32, shape=[BATCH_SIZE, 10, 227, 227], name='input_x')
             is_training_pl = tf.placeholder(dtype=tf.bool, shape=())
             # batch = tf.Variable(0, trainable=False)
 
@@ -81,13 +81,19 @@ def train():
                'merged': train_summary_op,
                'step':global_step,
                'train_op':train_op}
-        def dev_step(x_batch, writer = None, summary_op = None):
-            feet_dict = {ops['origin_volume_pl']: x_batch,
-                         ops['is_training_pl']: False}
-            loss, _, summary, step = sess.run([ops['loss'], ops['train_op'], summary_op, global_step], feed_dict=feet_dict)
-            print('step: {}  loss: {:g}'.format(step, loss))
-            if writer:
-                    writer.add_summary(summary, step)
+        def dev_step(x, writer = None, summary_op = None):
+            loss_sum = 0
+            for batch_index in range(x.shape[0] // BATCH_SIZE):
+                start_idx = batch_index * BATCH_SIZE
+                end_idx = (batch_index+1) * BATCH_SIZE
+                x_batch = x[start_idx: end_idx]
+                feet_dict = {ops['origin_volume_pl']: x_batch,
+                            ops['is_training_pl']: False}
+                loss, _, summary, step = sess.run([ops['loss'], ops['train_op'], summary_op, global_step], feed_dict=feet_dict)
+                loss_sum += loss
+                if writer:
+                        writer.add_summary(summary, step)
+            print('loss:{:g}'.format(loss_sum))
         def train_step(x_batch):
             feet_dict = {ops['origin_volume_pl']: x_batch,
                          ops['is_training_pl']: True}
