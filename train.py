@@ -55,7 +55,7 @@ def train():
 
             
             optimizer = tf.train.AdamOptimizer(BASE_LEARNING_RATE)
-            train_op = optimizer.minimize(loss, global_step=batch)
+            train_op = optimizer.minimize(loss, global_step=global_step)
             
             init = tf.global_variables_initializer() # init variables
             sess.run(init, {is_training_pl: True})
