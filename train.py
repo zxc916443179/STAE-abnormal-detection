@@ -52,12 +52,12 @@ def train():
             lr_summary = tf.summary.scalar('learning_rate', learning_rate)
 
             sess = tf.Session(config=config)
-            init = tf.global_variables_initializer() # init variables
 
             sess.run(init, {is_training_pl: True})
             optimizer = tf.train.AdamOptimizer(BASE_LEARNING_RATE)
             train_op = optimizer.minimize(loss, global_step=batch)
             
+            init = tf.global_variables_initializer() # init variables
             train_summary_op = tf.summary.merge([loss_summary, lr_summary])
             train_summary_dir = os.path.join(LOG_DIR, "summaries", "train")
             train_summary_writer = tf.summary.FileWriter(train_summary_dir, sess.graph)
