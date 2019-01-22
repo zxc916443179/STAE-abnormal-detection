@@ -74,7 +74,19 @@ def train():
 
         # create session and set config
         
-        
+        def dev_step(x_batch, writer = None, summary_op = None):
+            feet_dict = {ops['origin_volume_pl']: x_batch,
+                         ops['is_training_pl']: True}
+            loss, _, summary, step = sess.run([ops['loss'], ops['train_op'], summary_op, ops['step']], feed_dict=feet_dict)
+            print('step: {}  loss: {:g}'.format(step, loss))
+            if writer:
+                    writer.add_summary(summary, step)
+        def train_step(x_batch):
+            feet_dict = {ops['origin_volume_pl']: x_batch,
+                         ops['is_training_pl']: True}
+            loss, _, summary, step = sess.run([ops['loss'], ops['train_op'], train_summary_op, ops['step']], feed_dict=feet_dict)
+            print('step: {}  loss: {:g}'.format(step, loss))
+            train_summary_writer.add_summary(summary, step)
 
         # loading trained model
         ckpt = tf.train.get_checkpoint_state(MODEL_PATH)
@@ -120,19 +132,7 @@ def train():
                 dev_step(eval_data, eval_summary_writer, eval_summary_op)
 
 
-        def dev_step(x_batch, writer = None, summary_op = None):
-            feet_dict = {ops['origin_volume_pl']: x_batch,
-                         ops['is_training_pl']: True}
-            loss, _, summary, step = sess.run([ops['loss'], ops['train_op'], summary_op, ops['step']], feed_dict=feet_dict)
-            print('step: {}  loss: {:g}'.format(step, loss))
-            if writer:
-                    writer.add_summary(summary, step)
-        def train_step(x_batch):
-            feet_dict = {ops['origin_volume_pl']: x_batch,
-                         ops['is_training_pl']: True}
-            loss, _, summary, step = sess.run([ops['loss'], ops['train_op'], train_summary_op, ops['step']], feed_dict=feet_dict)
-            print('step: {}  loss: {:g}'.format(step, loss))
-            train_summary_writer.add_summary(summary, step)
+        
 def train_one_epoch(sess, ops, train_writer, dev_writer):
     is_training = True
     for fn in os.listdir(TRAIN_FILES):
