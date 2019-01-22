@@ -37,9 +37,9 @@ def train():
             config.allow_soft_placement = True
             config.log_device_placement = False
 
-            origin_volume_pl = tf.placeholder(dtype=tf.float32, shape=(BATCH_SIZE, 10, 227, 227))
+            origin_volume_pl = tf.placeholder(dtype=tf.float32, shape=(None, 10, 227, 227))
             is_training_pl = tf.placeholder(dtype=tf.bool, shape=())
-            batch = tf.Variable(0, trainable=False)
+            # batch = tf.Variable(0, trainable=False)
 
             # get model and loss
             decoded = model.get_model(origin_volume_pl, is_training_pl)
@@ -48,7 +48,7 @@ def train():
             global_step = tf.Variable(0, name="global_step", trainable=False)
 
             # get training operator
-            learning_rate = get_learning_rate(batch)
+            learning_rate = get_learning_rate(global_step)
             lr_summary = tf.summary.scalar('learning_rate', learning_rate)
 
             sess = tf.Session(config=config)
@@ -78,14 +78,14 @@ def train():
         def dev_step(x_batch, writer = None, summary_op = None):
             feet_dict = {ops['origin_volume_pl']: x_batch,
                          ops['is_training_pl']: True}
-            loss, _, summary, step = sess.run([ops['loss'], ops['train_op'], summary_op, ops['step']], feed_dict=feet_dict)
+            loss, _, summary, step = sess.run([ops['loss'], ops['train_op'], summary_op, global_step], feed_dict=feet_dict)
             print('step: {}  loss: {:g}'.format(step, loss))
             if writer:
                     writer.add_summary(summary, step)
         def train_step(x_batch):
             feet_dict = {ops['origin_volume_pl']: x_batch,
                          ops['is_training_pl']: True}
-            loss, _, summary, step = sess.run([ops['loss'], ops['train_op'], train_summary_op, ops['step']], feed_dict=feet_dict)
+            loss, _, summary, step = sess.run([ops['loss'], ops['train_op'], train_summary_op, global_step], feed_dict=feet_dict)
             print('step: {}  loss: {:g}'.format(step, loss))
             train_summary_writer.add_summary(summary, step)
 
@@ -101,7 +101,7 @@ def train():
                'decoded':decoded,
                'loss':loss,
                'merged': train_summary_op,
-               'step':batch,
+               'step':global_step,
                'train_op':train_op}
         fn = os.listdir(TRAIN_FILES)[0]
         output_log('----'+str(fn)+'----')
