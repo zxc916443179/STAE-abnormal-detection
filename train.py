@@ -37,7 +37,7 @@ def train():
             config.allow_soft_placement = True
             config.log_device_placement = False
 
-            origin_volume_pl = tf.placeholder(dtype=tf.float32, shape=(None, 10, 227, 227))
+            origin_volume_pl = tf.placeholder(dtype=tf.float32, shape=[None, 10, 227, 227])
             is_training_pl = tf.placeholder(dtype=tf.bool, shape=())
             # batch = tf.Variable(0, trainable=False)
 
