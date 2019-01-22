@@ -37,7 +37,7 @@ def train():
             config.allow_soft_placement = True
             config.log_device_placement = False
 
-            origin_volume_pl = tf.placeholder(dtype=tf.float32, shape=(None, 10, 227, 227))
+            origin_volume_pl = tf.placeholder(dtype=tf.float32, shape=[None, 10, 227, 227], name='input_x')
             is_training_pl = tf.placeholder(dtype=tf.bool, shape=())
             # batch = tf.Variable(0, trainable=False)
 
@@ -74,10 +74,16 @@ def train():
             saver = tf.train.Saver()
 
         # create session and set config
-        
+        ops = {'origin_volume_pl':origin_volume_pl,
+               'is_training_pl':is_training_pl,
+               'decoded':decoded,
+               'loss':loss,
+               'merged': train_summary_op,
+               'step':global_step,
+               'train_op':train_op}
         def dev_step(x_batch, writer = None, summary_op = None):
             feet_dict = {ops['origin_volume_pl']: x_batch,
-                         ops['is_training_pl']: True}
+                         ops['is_training_pl']: False}
             loss, _, summary, step = sess.run([ops['loss'], ops['train_op'], summary_op, global_step], feed_dict=feet_dict)
             print('step: {}  loss: {:g}'.format(step, loss))
             if writer:
@@ -96,13 +102,7 @@ def train():
             print('Loading tuned variables from %s' % (MODEL_PATH))
 
         # placeholder and option
-        ops = {'origin_volume_pl':origin_volume_pl,
-               'is_training_pl':is_training_pl,
-               'decoded':decoded,
-               'loss':loss,
-               'merged': train_summary_op,
-               'step':global_step,
-               'train_op':train_op}
+        
         fn = os.listdir(TRAIN_FILES)[0]
         output_log('----'+str(fn)+'----')
         # loading training data from h5
