@@ -32,6 +32,11 @@ def get_learning_rate(batch):
 def train():
     with tf.Graph().as_default():
         with tf.device('/gpu:'+str(GPU_INDEX)):
+            config = tf.ConfigProto()
+            config.gpu_options.allow_growth = True
+            config.allow_soft_placement = True
+            config.log_device_placement = False
+
             origin_volume_pl = tf.placeholder(dtype=tf.float32, shape=(BATCH_SIZE, 10, 227, 227))
             is_training_pl = tf.placeholder(dtype=tf.bool, shape=())
             batch = tf.Variable(0, trainable=False)
@@ -39,32 +44,37 @@ def train():
             # get model and loss
             decoded = model.get_model(origin_volume_pl, is_training_pl)
             loss = model.get_loss_L2(decoded, origin_volume_pl)
-            tf.summary.scalar('loss', loss)
+            loss_summary = tf.summary.scalar('loss', loss)
+            global_step = tf.Variable(0, name="global_step", trainable=False)
 
             # get training operator
             learning_rate = get_learning_rate(batch)
-            tf.summary.scalar('learning_rate', learning_rate)
+            lr_summary = tf.summary.scalar('learning_rate', learning_rate)
 
+            sess = tf.Session(config=config)
+            init = tf.global_variables_initializer() # init variables
+
+            sess.run(init, {is_training_pl: True})
             optimizer = tf.train.AdamOptimizer(BASE_LEARNING_RATE)
             train_op = optimizer.minimize(loss, global_step=batch)
+            
+            train_summary_op = tf.summary.merge([loss_summary, lr_summary])
+            train_summary_dir = os.path.join(LOG_DIR, "summaries", "train")
+            train_summary_writer = tf.summary.FileWriter(train_summary_dir, sess.graph)
+            
+            dev_summary_op = tf.summary.merge([loss_summary, lr_summary])
+            dev_summary_dir = os.path.join(LOG_DIR, "summaries", "dev")
+            dev_summary_writer = tf.summary.FileWriter(dev_summary_dir, sess.graph)
 
+            eval_summary_op = tf.summary.merge([loss_summary, lr_summary])
+            eval_summary_dir = os.path.join(LOG_DIR, "summaries", "eval")
+            eval_summary_writer = tf.summary.FileWriter(eval_summary_dir, sess.graph)
             # saving all training variables
             saver = tf.train.Saver()
 
         # create session and set config
-        config = tf.ConfigProto()
-        config.gpu_options.allow_growth = True
-        config.allow_soft_placement = True
-        config.log_device_placement = False
-        sess = tf.Session(config=config)
-
-        # add summary writers
-        merged = tf.summary.merge_all()
-        train_writer = tf.summary.FileWriter(LOG_DIR, sess.graph)
-        #eval_writer = tf.summary.FileWriter(LOG_DIR, sess.graph)
-        init = tf.global_variables_initializer() # init variables
-
-        sess.run(init, {is_training_pl: True})
+        
+        
 
         # loading trained model
         ckpt = tf.train.get_checkpoint_state(MODEL_PATH)
@@ -77,34 +87,65 @@ def train():
                'is_training_pl':is_training_pl,
                'decoded':decoded,
                'loss':loss,
-               'merged':merged,
+               'merged': train_summary_op,
                'step':batch,
                'train_op':train_op}
-
+        fn = os.listdir(TRAIN_FILES)[0]
+        output_log('----'+str(fn)+'----')
+        # loading training data from h5
+        current_data = processing.loadDataFile(os.path.join(TRAIN_FILES, fn), 'train', 0.9)
+        eval_data = processing.loadDataFile(os.path.join(TEST_FILES, 'UCSDped1_testing.h5'), 'test', 1)
+        train_data, dev_data = processing.split(current_data, 0.8)
+        print("data loading finished.")
+        # file_size = current_data.shape[0]
+        dev_every = 1000
         for epoch in range(MAX_EPOCH):
             output_log('***EPOCH %03d***' %(epoch))
             sys.stdout.flush() # update output
-
-            train_one_epoch(sess, ops, train_writer)
+            num_batches = train_data.shape[0] // BATCH_SIZE
+            for batch_index in range(num_batches):
+                start_idx = batch_index * BATCH_SIZE
+                end_idx = (batch_index+1) * BATCH_SIZE
+                train_step(current_data[start_idx:end_idx, :])
+                current_step = tf.train.global_step(sess, global_step)
+                if current_step % dev_every == 0:
+                    print('\nEvaluation')
+                    dev_step(dev_data, dev_summary_writer, dev_summary_op)
             #eval_one_epoch(sess, ops, eval_writer)
 
             if epoch % 10 == 0:
                 save_path = saver.save(sess, os.path.join(LOG_DIR, 'model.ckpt'))
                 output_log("Model saved in file: %s" %(save_path))
+                print('\nTesting')
+                dev_step(eval_data, eval_summary_writer, eval_summary_op)
 
-def train_one_epoch(sess, ops, train_writer):
+
+        def dev_step(x_batch, writer = None, summary_op = None):
+            feet_dict = {ops['origin_volume_pl']: x_batch,
+                         ops['is_training_pl']: True}
+            loss, _, summary, step = sess.run([ops['loss'], ops['train_op'], summary_op, ops['step']], feed_dict=feet_dict)
+            print('step: {}  loss: {:g}'.format(step, loss))
+            if writer:
+                    writer.add_summary(summary, step)
+        def train_step(x_batch):
+            feet_dict = {ops['origin_volume_pl']: x_batch,
+                         ops['is_training_pl']: True}
+            loss, _, summary, step = sess.run([ops['loss'], ops['train_op'], train_summary_op, ops['step']], feed_dict=feet_dict)
+            print('step: {}  loss: {:g}'.format(step, loss))
+            train_summary_writer.add_summary(summary, step)
+def train_one_epoch(sess, ops, train_writer, dev_writer):
     is_training = True
     for fn in os.listdir(TRAIN_FILES):
         output_log('----'+str(fn)+'----')
         # loading training data from h5
         current_data = processing.loadDataFile(os.path.join(TRAIN_FILES, fn), 'train', 0.9)
         print("data loading finished.")
-        file_size = current_data.shape[0]
-        print(current_data.shape)
-        input()
-        num_batches = file_size // BATCH_SIZE
+        # file_size = current_data.shape[0]
+        train_data, dev_data = processing.split(current_data, 0.8)
+        num_batches = train_data.shape[0] // BATCH_SIZE
         loss_sum = 0
         total_seen = 0
+        dev_per_step = 1000
 
         for batch_index in range(num_batches):
             start_idx = batch_index * BATCH_SIZE
@@ -145,6 +186,7 @@ def eval_one_epoch(sess, ops, eval_writer):
             eval_writer.add_summary(summary, step)
 
         output_log('eval mean loss: %f' % (loss_sum/float(num_batches)))
+
 
 if __name__ == '__main__':
     train()

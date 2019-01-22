@@ -286,6 +286,8 @@ def load_test_h5(h5_filename):
 def loadTestDataFile(h5_filename):
     return load_test_h5(h5_filename)
 
+def split(dataset, percentage):
+    return dataset[: int(percentage * dataset.shape[0])], dataset[int(percentage * dataset.shape[0]) + 1:] 
 if __name__ == "__main__":
     #pixel_mean('UCSDped2', data_root_path)
     #image_subtract('UCSDped2', data_root_path)
